@@ -111,7 +111,7 @@ def _notes_to_gcode(events: List[Tuple], max_polyphony: int,
     
     for slice_time, slice_duration, notes_in_slice in time_slices:
         # Limit polyphony
-        notes_to_play = notes_in_slice[:max_polyphony]
+        notes_to_play = sorted(notes_in_slice, reverse=True)[:max_polyphony]
         
         # Calculate duration
         if quantize_duration_ms:

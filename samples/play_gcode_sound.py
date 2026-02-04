@@ -164,7 +164,7 @@ def write_wav(path: str, audio: np.ndarray):
 
 def main():
     # Can also be updated to point to demo G-Code files
-    gcode_path = "samples/GCode/pink_panther.gcode"
+    gcode_path = "samples/GCode/mariobros.gcode"
     
     wav_path = gcode_path.replace(".gcode", ".wav")
     

@@ -8,7 +8,7 @@ def main():
     print()
     
     # Input file
-    midi_file = "samples/MIDI/john_cena_time_is_now.mid"
+    midi_file = "samples/MIDI/pink_panther.mid"
     
     print(f"Input MIDI file: {midi_file}")
     print()
@@ -23,7 +23,7 @@ def main():
     try:
         # BASIC CONVERSION
         # USES DEFAULT PARAMETERS
-        print("1  Basic Conversion")
+        print("Default conversion")
         print("-" * 70)
         output1 = "demo_output_basic.gcode"
         gcode1 = convert_midi_file(midi_file, output1)
@@ -31,16 +31,15 @@ def main():
         print(f"Generated {len(gcode1.splitlines())} lines of G-Code")
         print()
         
-        # OPTIMIZED CONVERSION
-        # PLAY WITH PARAMETERS HERE
-        print("2  Custom Conversion")
+        # CUSTOM CONVERSION
+        print("Example custom conversion")
         print("-" * 70)
-        output2 = "demo_output_custom.gcode"
+        output2 = "samples/GCode/pink_panther.gcode"
         gcode2 = convert_midi_file(
             midi_file, 
             output2,
             max_polyphony=1,
-            min_note_duration_ms=75,
+            min_note_duration_ms=80,
             quantize_duration_ms=160,
             tempo_scale=1
         )
