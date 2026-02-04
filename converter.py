@@ -87,7 +87,7 @@ def _extract_notes_from_midi(midi: mido.MidiFile) -> List[Tuple[float, int, int,
     return events
 
 
-def _notes_to_gcode(events: List[Tuple], max_polyphony: int, 
+def _notes_to_gcode(events: List[Tuple], max_polyphony: int,
                     min_duration_ms: int, quantize_duration_ms: int = None) -> List[str]:
     """
     Convert note events to M1006 G-Code commands.
@@ -109,9 +109,13 @@ def _notes_to_gcode(events: List[Tuple], max_polyphony: int,
     # Group events into time slices
     time_slices = _create_time_slices(events, min_duration_ms / 1000.0)
     
+    prev_note = None
+
     for slice_time, slice_duration, notes_in_slice in time_slices:
-        # Limit polyphony
-        notes_to_play = sorted(notes_in_slice, reverse=True)[:max_polyphony]
+        # Limit polyphony using a melody-aware heuristic
+        notes_to_play, prev_note = _select_notes_for_slice(
+            notes_in_slice, prev_note, slice_time, max_polyphony
+        )
         
         # Calculate duration
         if quantize_duration_ms:
@@ -128,7 +132,7 @@ def _notes_to_gcode(events: List[Tuple], max_polyphony: int,
             cmd = _create_note_command(notes_to_play, duration_ms)
             gcode_commands.append(cmd)
     
-    return gcode_commands
+    return _merge_adjacent_commands(gcode_commands)
 
 
 def _create_time_slices(events: List[Tuple], min_duration: float) -> List[Tuple]:
@@ -136,7 +140,7 @@ def _create_time_slices(events: List[Tuple], min_duration: float) -> List[Tuple]
     Convert note events into time slices with active notes.
     
     Returns:
-        List of (start_time, duration, [notes]) tuples
+        List of (start_time, duration, [(note, velocity, note_start_time)]) tuples
     """
     if not events:
         return []
@@ -151,31 +155,101 @@ def _create_time_slices(events: List[Tuple], min_duration: float) -> List[Tuple]
     timeline.sort(key=lambda x: (x[0], x[1] == 'end'))  # ends before starts at same time
     
     slices = []
-    active_notes = {}
+    active_notes = {}  # note -> (velocity, start_time)
     last_time = 0.0
     
     for event_time, event_type, note, velocity in timeline:
         # Create slice for the time that just passed
-        if event_time > last_time and active_notes:
+        if event_time > last_time:
             duration = event_time - last_time
             if duration >= min_duration:
-                note_list = [n for n in active_notes.keys()]
+                note_list = [(n, v, s) for n, (v, s) in active_notes.items()]
                 slices.append((last_time, duration, note_list))
-        elif event_time > last_time and not active_notes:
-            # Rest period
-            duration = event_time - last_time
-            if duration >= min_duration:
-                slices.append((last_time, duration, []))
         
         # Update active notes
         if event_type == 'start':
-            active_notes[note] = velocity
+            active_notes[note] = (velocity, event_time)
         else:
             active_notes.pop(note, None)
         
         last_time = event_time
     
     return slices
+
+def _select_notes_for_slice(notes, prev_note, slice_time, max_polyphony,
+                            attack_window=0.06,
+                            w_pitch=0.55, w_vel=0.30, w_cont=0.15, w_attack=0.10):
+    """
+    Choose notes for a time slice using a melody-aware heuristic.
+    """
+    attacks = [t for t in notes if (slice_time - t[2]) <= attack_window]
+
+    if attacks:
+        scored = []
+        for note, velocity, start_time in attacks:
+            if prev_note is None:
+                continuity = 0.0
+            else:
+                continuity = max(0.0, 1.0 - abs(note - prev_note) / 24.0)
+
+            score = (
+                w_pitch * (note / 127.0) +
+                w_vel * (velocity / 127.0) +
+                w_cont * continuity +
+                w_attack
+            )
+            scored.append((score, note))
+
+        scored.sort(reverse=True)
+        chosen = [n for _, n in scored[:max_polyphony]]
+        new_prev = chosen[0] if chosen else prev_note
+        return chosen, new_prev
+
+    if prev_note is not None and any(n == prev_note for n, _, _ in notes):
+        return [prev_note], prev_note
+
+    return [], prev_note
+
+
+def _merge_adjacent_commands(commands: List[str]) -> List[str]:
+    def parse(cmd: str):
+        parts = cmd.split()
+        if not parts or parts[0] != "M1006":
+            return None
+        params = {}
+        for part in parts[1:]:
+            if part:
+                params[part[0]] = int(part[1:])
+        return params
+
+    def build(params: dict) -> str:
+        order = ['A', 'B', 'L', 'C', 'D', 'M', 'E', 'F', 'N']
+        return "M1006 " + " ".join(f"{k}{params[k]}" for k in order)
+
+    merged = []
+    prev_params = None
+
+    for cmd in commands:
+        params = parse(cmd)
+        if params is None:
+            merged.append(cmd)
+            prev_params = None
+            continue
+
+        if prev_params is not None:
+            prev_cmp = dict(prev_params)
+            cur_cmp = dict(params)
+            prev_cmp.pop('L', None)
+            cur_cmp.pop('L', None)
+            if prev_cmp == cur_cmp:
+                prev_params['L'] += params.get('L', 0)
+                merged[-1] = build(prev_params)
+                continue
+
+        merged.append(cmd)
+        prev_params = params
+
+    return merged
 
 
 def _create_note_command(notes: List[int], duration_ms: int) -> str:

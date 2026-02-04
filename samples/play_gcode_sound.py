@@ -7,9 +7,9 @@ import sounddevice as sd
 # Config
 SAMPLE_RATE = 44100
 MASTER_VOL = 0.25
-INTER_CMD_GAP_MS = 8 # Add a small gap after every M1006 command
-FADE_MS = 4 # Fade to avoid clicks
-OCTAVE_SHIFT = 12 # shift up one octave
+INTER_CMD_GAP_MS = 8
+FADE_MS = 4
+OCTAVE_SHIFT = 12
 
 def midi_to_freq(midi_note: float) -> float:
     """
@@ -164,9 +164,7 @@ def write_wav(path: str, audio: np.ndarray):
 
 def main():
     # Can also be updated to point to demo G-Code files
-    gcode_path = "samples/GCode/pink_panther.gcode"
-
-    wav_path = gcode_path.replace(".gcode", ".wav")
+    gcode_path = "samples/GCode/john_cena_time_is_now.gcode"
 
     device = None
     if "--device" in sys.argv:
@@ -207,8 +205,9 @@ def main():
 
     print("Done.")
 
-    write_wav(wav_path, audio)
-    print(f"Wrote WAV: {wav_path}")
+    # wav_path = gcode_path.replace(".gcode", ".wav")
+    # write_wav(wav_path, audio)
+    # print(f"Wrote WAV: {wav_path}")
 
 
 if __name__ == "__main__":

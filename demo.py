@@ -39,8 +39,8 @@ def main():
             midi_file, 
             output2,
             max_polyphony=1,
-            min_note_duration_ms=80,
-            quantize_duration_ms=160,
+            min_note_duration_ms=60,
+            quantize_duration_ms=None,
             tempo_scale=1
         )
         print(f"Converted to: {output2}")
