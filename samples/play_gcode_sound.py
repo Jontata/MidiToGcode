@@ -164,10 +164,10 @@ def write_wav(path: str, audio: np.ndarray):
 
 def main():
     # Can also be updated to point to demo G-Code files
-    gcode_path = "samples/GCode/mariobros.gcode"
-    
+    gcode_path = "samples/GCode/pink_panther.gcode"
+
     wav_path = gcode_path.replace(".gcode", ".wav")
-    
+
     device = None
     if "--device" in sys.argv:
         i = sys.argv.index("--device")
@@ -181,9 +181,30 @@ def main():
 
     audio = gcode_to_audio(gcode_path, verbose=True)
 
-    print("\nPlaying...")
-    sd.play(audio, SAMPLE_RATE, device=device)
-    sd.wait()
+    print("\nPlaying... (press Enter to stop)")
+
+    import threading
+    import time
+
+    stop_flag = threading.Event()
+
+    def playback():
+        sd.play(audio, SAMPLE_RATE, device=device)
+        sd.wait()
+        stop_flag.set()
+
+    def wait_for_stop():
+        input()
+        stop_flag.set()
+        sd.stop()
+
+    play_thread = threading.Thread(target=playback)
+    stop_thread = threading.Thread(target=wait_for_stop)
+    play_thread.start()
+    stop_thread.start()
+    while not stop_flag.is_set():
+        time.sleep(0.1)
+
     print("Done.")
 
     write_wav(wav_path, audio)
